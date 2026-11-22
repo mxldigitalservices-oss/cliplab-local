@@ -1,0 +1,458 @@
+{
+  "proyecto": "ClipLab Pro (cliplab-backend) - modo local",
+  "generado": "2026-11-22",
+  "leer_primero": "ESTADO_CLIPLAB_PRO.md (detalle completo). Este JSON es el resumen legible por maquina.",
+  "idioma_usuario": "espanol informal, voz a texto",
+  "repo": {
+    "remoto": "https://github.com/mxldigitalservices-oss/cliplab-backend.git",
+    "commit_base": "d64f983",
+    "cambios_sin_commitear": true,
+    "node": ">=20 (probado en 22)"
+  },
+  "objetivo": "Estacion local de produccion de video (CLIPLAB_MODE=local), 16 GB RAM / Intel UHD 620, respaldo CPU libx264. Sin publicador automatico: descarga y copia manual.",
+  "partes": {
+    "1": {
+      "estado": "hecha_y_probada",
+      "titulo": "Interruptor CLIPLAB_MODE=local",
+      "resumen": "config.modo/modoLocal/modoPedido/modoValido; en modo local no se importa routes/programador.js (import dinamico), /api/programador/*, /api/clips/:id/programar y /publicar-ahora dan 404 (con y sin llave); GET /api/modo publico; panel servido sin pestana/seccion Programar y Publicar y con data-modo=local (htmlModoLocal en app.js); aviso de valor desconocido al arrancar.",
+      "pruebas_nuevas": 15
+    },
+    "2": {
+      "estado": "hecha_y_probada",
+      "titulo": "Canales, destinos, mercados y plan de renders",
+      "resumen": "src/mercados.js (en-US principal, es-US sub), src/canales.js (stories/sports/news + 4 destinos + trabajoDeCanal + variablesDeEntorno + validarNichosReservados + validarCatalogo), src/plan-renders.js (stories completo: 2 renders en vez de 8 + 2 concatenaciones).",
+      "pruebas_nuevas": 29,
+      "limites": [
+        "El ritmo editorial vive en config (env al arrancar), no por trabajo: se aplica con CLIPLAB_CANAL (aprobado, se implementa en la Parte 4, paso 0; precedencia env explicita > ritmo del canal > defecto).",
+        "es-US necesita su propio render si hay voz/subtitulos/titulo/ficha quemados (ahorro real 8->2).",
+        "Voz (TTS) DECIDIDA: Piper local offline (aun sin verificar binario ni voces en/es; verificar al empezar la Parte 5)."
+      ]
+    },
+    "3": {
+      "estado": "hecha_y_probada",
+      "titulo": "Paquete de texto y descarga manual",
+      "resumen": "src/paquete-texto.js (puro; en-US y es-US por destino; reutiliza construirContextoClip; no inventa hechos ni traduce, avisa si el idioma del clip no coincide); src/routes/paquete.js con GET /api/panel/canales, /api/panel/clips/:id/paquete?canal=&mercado=&destino= (canal obligatorio) y /api/panel/clips/:id/descarga (res.download, attachment, anti-traversal); panel: public/js/paquete.js (dialogo Publicar a mano con Copiar y Descargar) + botones en flujo.js y views.js.",
+      "pruebas_nuevas": 31,
+      "verificacion": [
+        "npm test completo",
+        "clon limpio + Partes 1-2 aplicando aplicar-parte3.sh (dos veces: repetible)",
+        "13 mutaciones (12 detectadas, 1 equivalente)",
+        "prueba de humo del panel en jsdom fuera del repo",
+        "sha256 de archivos protegidos sin cambios"
+      ],
+      "limites": [
+        "No probado en un navegador real: revisar el dialogo a ojo en el Chromebook.",
+        "Un solo archivo por clip: la descarga es la misma para en-US y es-US hasta la Parte 5 (renders por mercado).",
+        "Limites de largo y hashtags son valores de diseno editables en LIMITES, no reglas de las plataformas.",
+        "Deteccion de idioma heuristica; hashtags de tema toscos."
+      ]
+    },
+    "4": {
+      "estado": "hecha_y_probada",
+      "titulo": "CLIPLAB_CANAL, cliente Ollama en Node (qwen2.5:7b-instruct, keep_alive 0), exclusion Ollama<->FFmpeg, Modelfile guionista, validador de ficha, guionista con reintentos y cola de guiones",
+      "resumen": "config: CLIPLAB_CANAL (env explicita > ritmo del canal > defecto; desconocido = aviso; visible en /api/modo y log) + OLLAMA_*; src/ollama.js (chat con AbortSignal.timeout, ErrorOllama, modelosInstalados sin :latest, keep_alive 0, fetchImpl inyectable, candado dentro de chat); src/engine/exclusion.js + cola.js (FIFO, reentrante, sin tocar pipeline.js); config/Modelfile.guionista; src/validador-ficha.js (ficha unica fuente de hechos; sin dialogos/citas; Parte N consecutiva; idioma vs mercado; ritmo del canal; news exige lugar y fecha); src/guionista.js (max 2 reintentos devolviendo problemas); src/guiones-cola.js (pendientes->procesados|fallidos) y src/memoria-proyecto.js.",
+      "pruebas_nuevas": 101,
+      "pruebas_por_archivo": {
+        "canal-config": 14,
+        "exclusion": 8,
+        "ollama": 14,
+        "validador-ficha": 36,
+        "guionista": 15,
+        "guiones-cola": 14
+      },
+      "verificacion": [
+        "npm test completo 512/508/4/0",
+        "~48 mutaciones, todas detectadas (una mal planteada se rehizo)",
+        "aplicar-parte4.sh en clon limpio de la Parte 3, dos veces",
+        "sha256 de archivos protegidos sin cambios"
+      ],
+      "limites": [
+        "Sin Ollama real en el entorno de Claude: nada probado contra un servidor real; confirmar con 'ollama list' que existe qwen2.5:7b-instruct.",
+        "OLLAMA_TIMEOUT_MS=600000 y NUM_PREDICT=1536 son estimaciones para CPU (3-6 tok/s): ajustar con una prueba real.",
+        "Validador heuristico: nombre propio al inicio de frase no se comprueba; cifras en palabras solo avisan; Title Case/MAYUSCULAS no se revisan como nombres; detectarIdioma puede dar null.",
+        "Umbrales editables: ESCENA_MAX_FACTOR 1.5, PALABRAS_POR_SEGUNDO_MAX 3.4, MAX_PROBLEMAS 12.",
+        "La cola de guiones y la memoria NO tienen rutas HTTP ni UI todavia (Parte 5).",
+        "Si el .env real trae SEGMENT_MIN_SECONDS/SEGMENT_MAX_SECONDS (venian en .env.example), ganan sobre CLIPLAB_CANAL."
+      ]
+    },
+    "5": {
+      "estado": "hecha_y_probada",
+      "titulo": "Piper local (contrato de sintesis), banco de medios, produccion del canal stories (plan + render FFmpeg + concat 9:16), cola de guiones con rutas protegidas y control en el panel",
+      "resumen": "src/voz.js (sintetizar/verificarPiper/vozDeMercado, probado con Piper real); src/banco-medios.js; src/stories-plan.js (puro); src/engine/stories-render.js (libx264 CPU, textfile, expediente, subtitulos, voz+musica+sfx, concat -c copy); src/stories-produccion.js (candado unico, registrarClips en el store con archivos por mercado); src/trabajos-guion.js; src/routes/guiones.js (7 rutas con requireMasterKey); public/js/guiones.js (boton Guiones); descarga por mercado en paquete.js; validador acepta foto y meses en/es.",
+      "pruebas_nuevas": 78,
+      "piper_verificado": {
+        "binario": "piper_linux_x86_64 2023.11.14-2",
+        "voces_probadas": [
+          "en-us-lessac-low",
+          "es-carlfm-x-low"
+        ],
+        "rtf": "0.12-0.13 (1 nucleo)",
+        "ram_pico_mb": 165,
+        "wav": "mono 16 kHz (low) / 22.05 kHz (medium)",
+        "windows": "no verificado",
+        "voces_medium_high": "no descargables aqui (Hugging Face bloqueado)"
+      },
+      "limites": [
+        "MAX_CLIPS_STORED (25): una serie en 2 mercados deja (N+1)*2 videos; los archivos por mercado que no son clip.url pueden podarse antes (descarga da 404 con mensaje).",
+        "Sin ruta ni boton de cancelar produccion (el gestor ya tiene cancelar()).",
+        "sports y news no tienen produccion automatica (planDeProduccion los rechaza: Parte 6).",
+        "Subtitulos por frase; fondos = banco o colores lisos; el rango 45-75 s de stories solo avisa.",
+        "Windows y voces medium/high sin probar.",
+        "Render 1080x1920 con CPU_THREADS (defecto 2): estimar 1-3 min por minuto de video en la laptop; no medido en el hardware real."
+      ]
+    },
+    "6": {
+      "estado": "en_curso_6A_hecha",
+      "titulo": "sports y news: 6A hecha (plan+render+produccion desde video fuente); 6B pendiente (ruta protegida + boton + cancelar)",
+      "antes_de_codigo": [
+        "6B: ruta POST protegida (requireMasterKey) que llame producirFranja en segundo plano + estado + registrarClipsFranja; boton en el panel; opcional cancelar produccion y subir MAX_CLIPS_STORED"
+      ]
+    },
+    "7": {
+      "estado": "pendiente",
+      "titulo": "Relevo final y limpieza APROBADA para el cierre final (Dockerfile sin Chromium, quitar playwright-core, retirar modulos del publicador)"
+    },
+    "6A": {
+      "estado": "hecha_y_probada",
+      "titulo": "sports y news desde video fuente con franja y titulo con gancho (plan + render FFmpeg + produccion)",
+      "decision_usuario": "video fuente + franja (NO reutilizar stories-render, sin Piper ni Ollama)",
+      "resumen": "src/franja-plan.js (puro), src/engine/franja-render.js (1 pasada libx264, recorte|blur, drawbox+drawtext textfile, audio opcional), src/franja-produccion.js (candado ffmpeg, resolverFuente solo en clipsDir/UPLOADS_DIR, registrarClipsFranja).",
+      "pruebas_nuevas": 22,
+      "limites": [
+        "Sin ruta HTTP ni boton en el panel (6B).",
+        "Sin cancelar produccion (signal ya respetado).",
+        "Mismo audio para todos los mercados.",
+        "Recorte centrado fijo; degradado escalonado.",
+        "MAX_CLIPS_STORED sin subir.",
+        "Windows sin probar."
+      ]
+    }
+  },
+  "decisiones_cerradas": {
+    "tts": "Piper local (100% offline); sin edge-tts ni gTTS",
+    "youtube_long": "se mantiene 9:16 heredado (sin render 16:9 extra)",
+    "CLIPLAB_CANAL": "aprobado para aplicar el ritmo del canal por instancia en config/index.js (Parte 4, paso 0)",
+    "modelo_ollama": "qwen2.5:7b-instruct con keep_alive: 0 (liberar RAM al terminar)",
+    "limpieza_parte7": "aprobada para el cierre final"
+  },
+  "decisiones_abiertas": [],
+  "archivos_creados": [
+    {
+      "ruta": "src/mercados.js",
+      "lineas": 83
+    },
+    {
+      "ruta": "src/canales.js",
+      "lineas": 251
+    },
+    {
+      "ruta": "src/plan-renders.js",
+      "lineas": 59
+    },
+    {
+      "ruta": "src/paquete-texto.js",
+      "lineas": 268
+    },
+    {
+      "ruta": "src/routes/paquete.js",
+      "lineas": 128
+    },
+    {
+      "ruta": "public/js/paquete.js",
+      "lineas": 163
+    },
+    {
+      "ruta": "tests/modo-local.test.js",
+      "lineas": 125
+    },
+    {
+      "ruta": "tests/modo-completo.test.js",
+      "lineas": 99
+    },
+    {
+      "ruta": "tests/mercados.test.js",
+      "lineas": 62
+    },
+    {
+      "ruta": "tests/canales.test.js",
+      "lineas": 161
+    },
+    {
+      "ruta": "tests/plan-renders.test.js",
+      "lineas": 75
+    },
+    {
+      "ruta": "tests/paquete-texto.test.js",
+      "lineas": 204
+    },
+    {
+      "ruta": "tests/paquete-rutas.test.js",
+      "lineas": 249
+    },
+    {
+      "ruta": "tests/fixtures/hook-cargas.mjs",
+      "lineas": 14
+    },
+    {
+      "ruta": "tests/fixtures/registrar-hook.mjs",
+      "lineas": 4
+    },
+    {
+      "ruta": "tests/fixtures/arrancar-app.mjs",
+      "lineas": 9
+    },
+    {
+      "ruta": "aplicar-parte3.sh"
+    },
+    {
+      "ruta": "ESTADO_CLIPLAB_PRO.md",
+      "lineas": 94
+    },
+    {
+      "ruta": ".cliplab-handoff.json"
+    },
+    {
+      "ruta": "src/ollama.js",
+      "lineas": 111
+    },
+    {
+      "ruta": "src/engine/exclusion.js",
+      "lineas": 74
+    },
+    {
+      "ruta": "src/validador-ficha.js",
+      "lineas": 291
+    },
+    {
+      "ruta": "src/guionista.js",
+      "lineas": 96
+    },
+    {
+      "ruta": "src/guiones-cola.js",
+      "lineas": 116
+    },
+    {
+      "ruta": "src/memoria-proyecto.js",
+      "lineas": 66
+    },
+    {
+      "ruta": "config/Modelfile.guionista",
+      "lineas": 23
+    },
+    {
+      "ruta": "tests/canal-config.test.js",
+      "lineas": 170
+    },
+    {
+      "ruta": "tests/exclusion.test.js",
+      "lineas": 120
+    },
+    {
+      "ruta": "tests/ollama.test.js",
+      "lineas": 132
+    },
+    {
+      "ruta": "tests/validador-ficha.test.js",
+      "lineas": 280
+    },
+    {
+      "ruta": "tests/guionista.test.js",
+      "lineas": 157
+    },
+    {
+      "ruta": "tests/guiones-cola.test.js",
+      "lineas": 172
+    },
+    {
+      "ruta": "tests/fixtures/ficha-ejemplo.mjs",
+      "lineas": 38
+    },
+    {
+      "ruta": "aplicar-parte4.sh"
+    },
+    {
+      "ruta": "src/voz.js",
+      "lineas": 146
+    },
+    {
+      "ruta": "src/banco-medios.js",
+      "lineas": 98
+    },
+    {
+      "ruta": "src/stories-plan.js",
+      "lineas": 161
+    },
+    {
+      "ruta": "src/engine/stories-render.js",
+      "lineas": 162
+    },
+    {
+      "ruta": "src/stories-produccion.js",
+      "lineas": 118
+    },
+    {
+      "ruta": "src/trabajos-guion.js",
+      "lineas": 29
+    },
+    {
+      "ruta": "src/routes/guiones.js",
+      "lineas": 138
+    },
+    {
+      "ruta": "public/js/guiones.js",
+      "lineas": 193
+    },
+    {
+      "ruta": "tests/voz.test.js",
+      "lineas": 140
+    },
+    {
+      "ruta": "tests/banco-medios.test.js",
+      "lineas": 75
+    },
+    {
+      "ruta": "tests/stories-plan.test.js",
+      "lineas": 128
+    },
+    {
+      "ruta": "tests/stories-render.test.js",
+      "lineas": 144
+    },
+    {
+      "ruta": "tests/stories-produccion.test.js",
+      "lineas": 214
+    },
+    {
+      "ruta": "tests/guiones-rutas.test.js",
+      "lineas": 167
+    },
+    {
+      "ruta": "tests/guiones-panel.test.js",
+      "lineas": 63
+    },
+    {
+      "ruta": "tests/fixtures/piper-falso.mjs",
+      "lineas": 30
+    },
+    {
+      "ruta": "aplicar-parte5.sh"
+    },
+    {
+      "ruta": "src/franja-plan.js",
+      "lineas": 211
+    },
+    {
+      "ruta": "src/engine/franja-render.js",
+      "lineas": 80
+    },
+    {
+      "ruta": "src/franja-produccion.js",
+      "lineas": 92
+    },
+    {
+      "ruta": "tests/franja-plan.test.js",
+      "lineas": 135
+    },
+    {
+      "ruta": "tests/franja-produccion.test.js",
+      "lineas": 177
+    }
+  ],
+  "archivos_modificados": [
+    "src/config/index.js",
+    "src/app.js",
+    "src/server.js",
+    "src/routes/index.js",
+    "package.json",
+    ".env.example",
+    "public/js/api.js",
+    "public/js/flujo.js",
+    "public/js/views.js",
+    "public/index.html",
+    "public/css/styles.css",
+    "src/engine/cola.js"
+  ],
+  "archivos_protegidos_sin_tocar": [
+    "src/engine/pipeline.js",
+    "src/upload.js",
+    "src/engine/rotacion.js",
+    "src/engine/rotacion-estado.js",
+    "src/engine/rotacion-flujo.js"
+  ],
+  "tambien_sin_tocar": [
+    "Dockerfile",
+    "src/engine/marketing.js (solo se importa construirContextoClip)",
+    "src/engine/programador.js",
+    "src/engine/publicador.js"
+  ],
+  "npm_test": {
+    "comando": "npm test",
+    "duracion_aprox_s": 140,
+    "total": 612,
+    "pasan": 607,
+    "saltan": 5,
+    "fallan": 0,
+    "desglose": "base 336 + P1 15 + P2 29 + P3 31 + P4 101 + P5 78 + P6A 22",
+    "nota": "ejecutar desacoplado: setsid nohup npm test > /tmp/t.log 2>&1 &  (npm ci antes en un entorno nuevo; una llamada de bash no puede pasar de 300 s). Un salto extra es la prueba de Piper real (PIPER_PATH + PIPER_VOICES_DIR)."
+  },
+  "reglas_usuario": [
+    "No tocar pipeline.js, upload.js ni rotacion*.js",
+    "Ollama y FFmpeg nunca en paralelo (la cola los serializa)",
+    "Portar a Node sin Python lo tomado de ContentBotMXL-2 y ollama-core-engine",
+    "Archivos completos sin '...'; comandos de una linea (cat/heredoc o bash script); nunca nano",
+    "Una parte validada antes de la siguiente; pruebas con node --test; relevo al cierre",
+    "Descartado: publicador automatico y sus piezas, moviepy, psycopg2, gemini_client, youtube_client/OAuth, musica infantil, mp4/PNG de prueba, autogit, gitops, apikeys, server.py, Caddyfile, .zip, .patch"
+  ],
+  "siguiente_instancia": {
+    "arrancar": "unzip cliplab-backend-1-6A-local-pro.zip && cd cliplab-backend && npm ci && npm test (esperar 612/607/5/0). Leer solo ESTADO_CLIPLAB_PRO.md y este JSON. Empezar por la Parte 6B (ruta protegida + boton para producirFranja).",
+    "patron_de_entrega": "aplicar-parteN.sh autocontenido (heredocs entrecomillados, archivos completos, sha256 previo, respaldo, repetible), pruebas node --test registradas en package.json, mutaciones, suite completa, ESTADO y handoff actualizados",
+    "trucos_de_shell": "No usar pkill -f / pgrep -f con texto que aparezca en tu propia linea de comandos (mata tu shell): ps -eo pid,args | awk '/patron/ && !/awk/ {print $1}' | xargs kill",
+    "parte6": {
+      "nota": "Ver ESTADO_CLIPLAB_PRO.md secciones 9b y 10. Parte 5 completa; la Parte 6 es sports y news."
+    }
+  },
+  "archivos_modificados_parte4": [
+    "src/config/index.js",
+    "src/engine/cola.js",
+    "src/routes/index.js",
+    "src/server.js",
+    "package.json",
+    ".env.example",
+    "ESTADO_CLIPLAB_PRO.md",
+    ".cliplab-handoff.json"
+  ],
+  "archivos_modificados_parte5": [
+    "src/config/index.js",
+    "src/validador-ficha.js",
+    "src/routes/index.js",
+    "src/routes/paquete.js",
+    "public/js/api.js",
+    "public/js/paquete.js",
+    "public/index.html",
+    "public/css/styles.css",
+    "package.json",
+    ".env.example",
+    "tests/validador-ficha.test.js",
+    "tests/paquete-rutas.test.js",
+    ".gitignore",
+    "ESTADO_CLIPLAB_PRO.md",
+    ".cliplab-handoff.json"
+  ],
+  "paquete": "1-6A-consolidado-limpio",
+  "consolidacion": {
+    "fecha": "2026-11-22",
+    "eliminado": [
+      "venv/ (7167 archivos, ~121 MB)",
+      "carpeta anidada cliplab-backend/ (116 archivos de la arquitectura anterior)",
+      "src/.cookies-repo.js.swp",
+      "cookies-repo.js (0 bytes)"
+    ],
+    "movido": "aplicar-*.sh -> scripts-aplicacion/",
+    "nota": "El paquete base '1-4' solo traia codigo original + Parte 1 sin aplicar; Partes 1-5 integradas desde la cadena verificada. tests/redis-programador.test.js no esta en npm test."
+  },
+  "archivos_modificados_parte6a": [
+    "package.json",
+    "ESTADO_CLIPLAB_PRO.md",
+    ".cliplab-handoff.json"
+  ]
+}
