@@ -6,12 +6,15 @@
 //   trabajo  -> campos que /api/panel/encolar y el pipeline YA aceptan por trabajo: modo, estiloSubtitulos y ajustes.
 //   ritmo    -> valores del ritmo editorial. OJO: viven en config (variables de entorno), no por trabajo; hoy se aplican
 //               arrancando una instancia con variablesDeEntorno(canal). Aplicarlos por trabajo exigiria tocar pipeline.js.
-//   franja   -> franja/degradado que tapa logos ajenos y lleva el titulo gancho (sports y news; se dibuja en la Parte 6).
+//   difuminados -> difuminados (blur) ajustables que tapan logos ajenos sin franjas rigidas + posicion del titulo gancho (sports y news; Parte 6B).
+//                  Las regiones son SUGERIDAS por formato (vertical / horizontal), en fracciones del cuadro de salida; el panel y el mini editor
+//                  (Parte 7) pueden ajustarlas, apagarlas o sumar mas (ver src/difuminados.js).
 //   ficha    -> expediente en pantalla (stories; se dibuja en la Parte 5).
 //   tono, nichos, destinos, mercados.
-// Los numeros de ritmo y franja son valores iniciales de diseno, pensados para ajustarse; no son reglas de las plataformas.
+// Los numeros de ritmo y difuminados son valores iniciales de diseno, pensados para ajustarse; no son reglas de las plataformas.
 // ---------------------------------------------------------------------------
 import { IDS_MERCADOS } from './mercados.js';
+import { sanearDifuminados } from './difuminados.js';
 
 function congelar(obj) {
   if (obj && typeof obj === 'object' && !Object.isFrozen(obj)) {
@@ -100,7 +103,7 @@ export const CANALES = congelar({
     },
     trabajo: { modo: 'blur', estiloSubtitulos: 'clasico', ajustes: { color: 'calido' } },
     ritmo: { beatSeconds: 4.6, punchZoom: 1.06, hotCutGap: 0.6, segmentMinSeconds: 45, segmentMaxSeconds: 75 },
-    franja: null,
+    difuminados: null,
     ficha: { campos: ['foto', 'anio', 'lugar', 'datosClave'], segundos: 4, posicion: 'inferior' },
     estructuraLarga: 'serie',
     rigor: null,
@@ -119,7 +122,24 @@ export const CANALES = congelar({
     },
     trabajo: { modo: 'recorte', estiloSubtitulos: 'dinamico', ajustes: { color: 'vivido' } },
     ritmo: { beatSeconds: 2.4, punchZoom: 1.18, hotCutGap: 0.35, segmentMinSeconds: 20, segmentMaxSeconds: 45 },
-    franja: { tapaLogos: true, posiciones: ['superior', 'inferior'], altoPct: 0.12, color: '#0B0B0F', opacidadMax: 0.9, degradado: true, titulo: true },
+    difuminados: {
+      tapaLogos: true,
+      titulo: { posicion: 'superior', caja: 0.5 },
+      regiones: {
+        vertical: [
+          { id: 'logo-sup-izq', etiqueta: 'Logo sup. izq.', x: 0.03, y: 0.03, ancho: 0.26, alto: 0.07, fuerza: 7 },
+          { id: 'logo-sup-der', etiqueta: 'Logo sup. der.', x: 0.71, y: 0.03, ancho: 0.26, alto: 0.07, fuerza: 7 },
+          { id: 'logo-inf-izq', etiqueta: 'Logo inf. izq.', x: 0.03, y: 0.88, ancho: 0.26, alto: 0.07, fuerza: 7 },
+          { id: 'logo-inf-der', etiqueta: 'Logo inf. der.', x: 0.71, y: 0.88, ancho: 0.26, alto: 0.07, fuerza: 7 },
+        ],
+        horizontal: [
+          { id: 'logo-sup-izq', etiqueta: 'Logo sup. izq.', x: 0.02, y: 0.03, ancho: 0.16, alto: 0.11, fuerza: 7 },
+          { id: 'logo-sup-der', etiqueta: 'Logo sup. der.', x: 0.82, y: 0.03, ancho: 0.16, alto: 0.11, fuerza: 7 },
+          { id: 'logo-inf-izq', etiqueta: 'Logo inf. izq.', x: 0.02, y: 0.85, ancho: 0.16, alto: 0.11, fuerza: 7 },
+          { id: 'logo-inf-der', etiqueta: 'Logo inf. der.', x: 0.82, y: 0.85, ancho: 0.16, alto: 0.11, fuerza: 7 },
+        ],
+      },
+    },
     ficha: null,
     estructuraLarga: 'lista',
     rigor: null,
@@ -138,7 +158,22 @@ export const CANALES = congelar({
     },
     trabajo: { modo: 'blur', estiloSubtitulos: 'clasico', ajustes: null },
     ritmo: { beatSeconds: 4.0, punchZoom: 1.04, hotCutGap: 0.5, segmentMinSeconds: 30, segmentMaxSeconds: 60 },
-    franja: { tapaLogos: true, posiciones: ['inferior'], altoPct: 0.1, color: '#0A1A33', opacidadMax: 0.92, degradado: true, titulo: true },
+    difuminados: {
+      tapaLogos: true,
+      titulo: { posicion: 'inferior', caja: 0.55 },
+      regiones: {
+        vertical: [
+          { id: 'logo-sup-der', etiqueta: 'Logo sup. der.', x: 0.71, y: 0.03, ancho: 0.26, alto: 0.07, fuerza: 7 },
+          { id: 'logo-inf-izq', etiqueta: 'Logo inf. izq.', x: 0.03, y: 0.88, ancho: 0.3, alto: 0.07, fuerza: 7 },
+          { id: 'logo-inf-der', etiqueta: 'Logo inf. der.', x: 0.71, y: 0.88, ancho: 0.26, alto: 0.07, fuerza: 7 },
+        ],
+        horizontal: [
+          { id: 'logo-sup-der', etiqueta: 'Logo sup. der.', x: 0.82, y: 0.03, ancho: 0.16, alto: 0.11, fuerza: 7 },
+          { id: 'logo-inf-izq', etiqueta: 'Logo inf. izq.', x: 0.02, y: 0.85, ancho: 0.18, alto: 0.11, fuerza: 7 },
+          { id: 'logo-inf-der', etiqueta: 'Logo inf. der.', x: 0.82, y: 0.85, ancho: 0.16, alto: 0.11, fuerza: 7 },
+        ],
+      },
+    },
     ficha: null,
     estructuraLarga: 'lista',
     rigor: { tematico: true, geografico: true },
@@ -243,8 +278,14 @@ export function validarCatalogo() {
     for (const d of c.destinos) if (!Object.hasOwn(DESTINOS, d)) problemas.push('canal ' + id + ': destino desconocido ' + d);
     for (const m of c.mercados) if (!IDS_MERCADOS.includes(m)) problemas.push('canal ' + id + ': mercado desconocido ' + m);
     if (!c.mercados.length) problemas.push('canal ' + id + ': sin mercados');
-    if (!c.franja && !c.ficha) problemas.push('canal ' + id + ': necesita franja o ficha');
-    if (c.franja && c.ficha) problemas.push('canal ' + id + ': franja y ficha a la vez no estan previstas');
+    if (!c.difuminados && !c.ficha) problemas.push('canal ' + id + ': necesita difuminados o ficha');
+    if (c.difuminados && c.ficha) problemas.push('canal ' + id + ': difuminados y ficha a la vez no estan previstos');
+    if (c.difuminados) {
+      for (const formato of ['vertical', 'horizontal']) {
+        try { sanearDifuminados(c.difuminados.regiones[formato]); } catch (e) { problemas.push('canal ' + id + ': difuminados ' + formato + ' invalidos (' + e.message + ')'); }
+      }
+      if (!['superior', 'inferior'].includes(c.difuminados.titulo && c.difuminados.titulo.posicion)) problemas.push('canal ' + id + ': posicion del titulo invalida');
+    }
     if (!c.nichos.prioritarios.length) problemas.push('canal ' + id + ': sin nichos prioritarios');
   }
   return problemas;

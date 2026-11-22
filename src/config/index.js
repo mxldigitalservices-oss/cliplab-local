@@ -94,7 +94,9 @@ export const config = Object.freeze({
   // true si el operador fijo DEFAULT_RENDER_MODE (recorte|blur): un modo vacio usa ese valor en vez de rotar.
   defaultRenderModeFijo: ['recorte', 'blur'].includes(process.env.DEFAULT_RENDER_MODE),
   maxQueue: Math.max(1, toInt(process.env.MAX_QUEUE, 20)),
-  maxClipsStored: Math.max(1, toInt(process.env.MAX_CLIPS_STORED, 25)),
+  // Videos que se conservan en la carpeta de clips (el pipeline borra los mas viejos). 60 alcanza para una serie de 12 partes en dos
+  // mercados ((12 + 1 largo) x 2 = 26 videos) mas varias producciones de sports/news; son archivos en disco, no RAM.
+  maxClipsStored: Math.max(1, toInt(process.env.MAX_CLIPS_STORED, 60)),
 
   // Extraccion multiple: de 4 a 5 clips de 30 a 60 s por video. El historial de rangos usados
   // (anti-duplicados) se guarda en dataDir; en Railway conviene montar un volumen para que sobreviva.

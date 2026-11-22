@@ -240,3 +240,10 @@ export const estadoTrabajoGuion = (signal) => solicitar('/api/panel/guiones/esta
 export const encolarGuionFicha = (ficha, opciones = {}) => solicitar('/api/panel/guiones', { metodo: 'POST', cuerpo: { ficha, ...opciones } });
 export const procesarGuion = () => solicitar('/api/panel/guiones/procesar', { metodo: 'POST', cuerpo: {} });
 export const producirGuiones = (ids) => solicitar('/api/panel/guiones/producir', { metodo: 'POST', cuerpo: { ids } });
+
+// ---- Sports / News desde video fuente + cancelar produccion (Parte 6B) ----
+export const obtenerConfigFranja = (canal = '', formato = '', signal) => solicitar('/api/panel/franja/config' + (canal ? '?canal=' + encodeURIComponent(canal) + (formato ? '&formato=' + encodeURIComponent(formato) : '') : ''), { signal });
+export const listarFuentesFranja = (signal) => solicitar('/api/panel/franja/fuentes', { signal });
+export const validarDifuminados = (canal, formato, difuminados) => solicitar('/api/panel/franja/difuminados/validar', { metodo: 'POST', cuerpo: { canal, formato, difuminados } });
+export const producirFranjaVideo = (cuerpo) => solicitar('/api/panel/franja/producir', { metodo: 'POST', cuerpo });
+export const cancelarProduccion = () => solicitar('/api/panel/produccion/cancelar', { metodo: 'POST', cuerpo: {} });

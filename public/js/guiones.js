@@ -1,7 +1,7 @@
 // Guiones y produccion de stories (Parte 5). Boton "Guiones" de la barra superior -> dialogo con:
 //   Entorno (Ollama / Piper / banco), formulario de ficha, cola (pendientes -> procesados / fallidos) y produccion de video.
 // Cada control llama a una ruta real de /api/panel/guiones. Todo el texto entra con textContent (sin HTML inyectado).
-import { obtenerCanales, obtenerEntornoGuiones, listarGuiones, estadoTrabajoGuion, encolarGuionFicha, procesarGuion, producirGuiones } from './api.js';
+import { obtenerCanales, obtenerEntornoGuiones, listarGuiones, estadoTrabajoGuion, encolarGuionFicha, procesarGuion, producirGuiones, cancelarProduccion } from './api.js';
 import { el, toast } from './ui.js';
 
 const TIPOS = ['fecha', 'lugar', 'cifra', 'persona', 'dato'];
@@ -60,9 +60,13 @@ function pintarTrabajo(t) {
   const caja = zona('trabajo');
   const ocupado = t.estado === 'corriendo';
   dialogo.dataset.ocupado = ocupado ? '1' : '0';
+  const cancelable = ocupado && (t.tipo === 'produccion' || t.tipo === 'franja');
+  zona('btn-cancelar').hidden = !cancelable;
+  zona('btn-cancelar').disabled = Boolean(t.cancelando);
   if (!t.tipo) caja.textContent = 'Sin trabajos en curso.';
-  else if (ocupado) caja.textContent = (t.tipo === 'guion' ? 'Guion' : 'Produccion') + ': ' + t.etapa + ' (' + t.progreso + '%)';
+  else if (ocupado) caja.textContent = (t.cancelando ? 'Cancelando… ' : '') + (t.tipo === 'guion' ? 'Guion' : 'Produccion') + ': ' + t.etapa + ' (' + t.progreso + '%)';
   else if (t.estado === 'ok') caja.textContent = (t.tipo === 'guion' ? 'Guion listo.' : 'Produccion lista: los videos estan en "Todos los clips" (boton Publicar a mano).') + (t.resultado && t.resultado.avisos && t.resultado.avisos.length ? ' Avisos: ' + t.resultado.avisos.join(' | ') : '');
+  else if (t.estado === 'cancelado') caja.textContent = 'Produccion cancelada. No quedaron archivos a medias y ya puedes producir otra.';
   else caja.textContent = 'Fallo: ' + (t.error || 'sin detalle');
   caja.dataset.tipo = t.estado === 'error' ? 'error' : t.estado === 'ok' ? 'ok' : 'info';
   const huella = t.tipo + t.estado + t.fin;
@@ -111,6 +115,17 @@ async function encolar(formulario) {
     aviso('Ficha en la cola (' + r.ids.length + ' guion(es)).', 'ok');
     formulario.reset();
     refrescar(false);
+  } catch (error) {
+    aviso(error.message, 'error');
+  }
+}
+
+async function cancelar() {
+  try {
+    const r = await cancelarProduccion();
+    aviso(r.trabajo.estado === 'cancelado' ? 'Produccion cancelada.' : 'Cancelando…', 'ok');
+    pintarTrabajo(r.trabajo);
+    iniciarSondeo();
   } catch (error) {
     aviso(error.message, 'error');
   }
@@ -167,6 +182,7 @@ function crearDialogo() {
     el('div', { class: 'estado-entorno', 'data-zona': 'entorno' }),
     el('p', { class: 'estado', 'data-zona': 'estado', hidden: true }),
     el('p', { class: 'estado', 'data-zona': 'trabajo', text: 'Sin trabajos en curso.' }),
+    el('button', { class: 'btn', type: 'button', 'data-zona': 'btn-cancelar', hidden: true, text: 'Cancelar produccion', onclick: () => cancelar() }),
     formulario,
     el('h3', { text: 'Pendientes' }), el('ul', { class: 'guion-lista', 'data-zona': 'pendientes' }), btnProcesar,
     el('h3', { text: 'Procesados (elige 1 o 2: uno por mercado)' }), el('ul', { class: 'guion-lista', 'data-zona': 'procesados' }), btnProducir,

@@ -67,16 +67,23 @@ test('ritmo: cada valor lo acepta config tal cual (sin que lo corrija ni lo igno
   }
 });
 
-test('sports es mas rapido que news y que stories; news y stories no tienen franja y ficha a la vez', () => {
+test('sports es mas rapido que news y que stories; news y sports tienen difuminados y no ficha; stories al reves', () => {
   assert.ok(CANALES.sports.ritmo.beatSeconds < CANALES.news.ritmo.beatSeconds);
   assert.ok(CANALES.sports.ritmo.beatSeconds < CANALES.stories.ritmo.beatSeconds);
   assert.equal(CANALES.stories.ficha.campos.join(','), 'foto,anio,lugar,datosClave');
-  assert.equal(CANALES.stories.franja, null);
+  assert.equal(CANALES.stories.difuminados, null);
+  assert.equal(CANALES.stories.franja, undefined, 'las franjas rigidas ya no existen');
   for (const id of ['sports', 'news']) {
-    assert.equal(CANALES[id].franja.tapaLogos, true);
+    const d = CANALES[id].difuminados;
+    assert.equal(d.tapaLogos, true);
     assert.equal(CANALES[id].ficha, null);
-    assert.ok(CANALES[id].franja.altoPct > 0 && CANALES[id].franja.altoPct < 0.5);
-    assert.match(CANALES[id].franja.color, /^#[0-9a-f]{6}$/i);
+    assert.equal(CANALES[id].franja, undefined, id + ': sin franja rigida');
+    assert.ok(['superior', 'inferior'].includes(d.titulo.posicion));
+    assert.ok(d.titulo.caja > 0 && d.titulo.caja <= 0.8);
+    for (const formato of ['vertical', 'horizontal']) {
+      assert.ok(d.regiones[formato].length >= 2 && d.regiones[formato].length <= 6, id + ' ' + formato);
+      for (const r of d.regiones[formato]) assert.ok(r.ancho < 0.4 && r.alto < 0.2, id + ': un difuminado de logo es chico, no una banda');
+    }
   }
   assert.deepEqual(CANALES.news.rigor, { tematico: true, geografico: true });
   assert.equal(CANALES.stories.estructuraLarga, 'serie');

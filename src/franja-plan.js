@@ -1,14 +1,17 @@
 // ---------------------------------------------------------------------------
-// Plan del canal SPORTS y NEWS a partir de un VIDEO FUENTE real (Parte 6A). Modulo puro: sin disco, sin red, sin ffmpeg.
-// Cada canal declara su franja en CANALES.<canal>.franja (posiciones, altoPct, color, opacidadMax, degradado, titulo, tapaLogos).
-// Aqui se convierte esa configuracion + un titulo con gancho en GEOMETRIA concreta (pixeles) que el render dibuja:
-//   - franja solida en cada posicion elegida (tapa los logos ajenos del video fuente) con degradado hacia el centro,
-//   - el titulo con gancho en UNA de las franjas (la primera de las elegidas), en 1-3 lineas y con tamano ajustado al alto de la franja.
-// El titulo y el mercado nunca se adivinan: sin titulo o sin mercado valido es un error 400 claro. stories NO usa franja (ErrorFranja).
-// Un video por mercado (el titulo va quemado: en-US y es-US no comparten archivo). Todo el ritmo y numeros son valores editables.
+// Plan del canal SPORTS y NEWS a partir de un VIDEO FUENTE real (Parte 6A, reescrito en la 6B). Modulo puro: sin disco, sin red, sin ffmpeg.
+// Ya NO hay franjas rigidas que tapan una banda entera del video: cada canal sugiere difuminados (blur) pequenos sobre las esquinas donde
+// suelen estar los logos ajenos (CANALES.<canal>.difuminados), y quien produce los puede ajustar, apagar o sumar (src/difuminados.js).
+// El titulo con gancho va en un cajon translucido del tamano del texto (no a todo lo ancho), arriba o abajo segun el canal.
+// Todo se calcula para un FORMATO (vertical 9:16 u horizontal 16:9, src/formatos.js) y para un RANGO del video fuente (src/rango.js).
+// El titulo y el mercado nunca se adivinan: sin titulo o sin mercado valido es un error 400 claro. stories NO usa esto (ErrorFranja).
+// Un video por mercado (el titulo va quemado: en-US y es-US no comparten archivo). Los numeros son valores iniciales editables.
 // ---------------------------------------------------------------------------
 import { CANALES, ErrorCanal, normalizarCanal } from './canales.js';
 import { MERCADO_PRINCIPAL, normalizarMercado } from './mercados.js';
+import { formatoDe, FORMATOS } from './formatos.js';
+import { geometriaDeDifuminados, resolverDifuminados } from './difuminados.js';
+import { ErrorRango, normalizarRango } from './rango.js';
 
 export class ErrorFranja extends ErrorCanal {
   constructor(mensaje) {
@@ -17,25 +20,31 @@ export class ErrorFranja extends ErrorCanal {
   }
 }
 
-export const ANCHO = 1080;
-export const ALTO = 1920;
+export const ANCHO = FORMATOS.vertical.ancho;
+export const ALTO = FORMATOS.vertical.alto;
 export const TITULO_MIN = 8;
 export const TITULO_MAX = 90;
 export const MAX_LINEAS = 3;
-export const PASOS_DEGRADADO = 12;
-export const FRACCION_DEGRADADO = 0.6;   // alto del degradado = 60 % del alto de la franja, hacia el centro del video
-export const CANALES_CON_FRANJA = Object.freeze(Object.keys(CANALES).filter((id) => CANALES[id].franja));
+export const POSICIONES_TITULO = Object.freeze(['superior', 'inferior']);
+export const CANALES_CON_FRANJA = Object.freeze(Object.keys(CANALES).filter((id) => CANALES[id].difuminados));
+export const CANALES_CON_DIFUMINADOS = CANALES_CON_FRANJA;
 
 const par = (n) => Math.max(2, Math.round(n / 2) * 2);
 const ID_VALIDO = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 
-function perfilConFranja(valor) {
+function perfilConDifuminados(valor) {
   const id = normalizarCanal(valor);
-  const franja = CANALES[id].franja;
-  if (!franja) {
-    throw new ErrorFranja('El canal ' + id + ' no usa franja (usa su propia produccion). Canales con franja: ' + CANALES_CON_FRANJA.join(', ') + '.');
+  const difuminados = CANALES[id].difuminados;
+  if (!difuminados) {
+    throw new ErrorFranja('El canal ' + id + ' no usa difuminados ni titulo sobre video fuente (usa su propia produccion). Canales con difuminados: ' + CANALES_CON_FRANJA.join(', ') + '.');
   }
-  return { id, franja, perfil: CANALES[id] };
+  return { id, config: difuminados, perfil: CANALES[id] };
+}
+
+/** Sugeridos (crudos) de un canal para un formato. Lanza ErrorCanal / ErrorFormato (400) si el canal no usa difuminados o el formato no existe. */
+export function difuminadosSugeridos(canal, formato) {
+  const { config } = perfilConDifuminados(canal);
+  return JSON.parse(JSON.stringify(config.regiones[formatoDe(formato).id]));
 }
 
 /**
@@ -47,7 +56,7 @@ export function ganchoDeTitulo(titulo, { canal } = {}) {
   const avisos = [];
   let texto = String(titulo ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim();
   texto = texto.replace(/^["'“”«»]+|["'“”«»]+$/g, '').trim();
-  if (!texto) throw new ErrorFranja('Falta el titulo con gancho de la franja.');
+  if (!texto) throw new ErrorFranja('Falta el titulo con gancho.');
 
   const letras = texto.replace(/[^\p{L}]/gu, '');
   const mayus = letras.replace(/[^\p{Lu}]/gu, '');
@@ -78,7 +87,7 @@ export function lineasDeTitulo(texto, { maxChars, maxLineas = MAX_LINEAS } = {})
   const lineas = [];
   let actual = '';
   for (const p0 of palabras) {
-    const p = p0.length > limite ? p0.slice(0, limite - 1) + '…' : p0;   // palabra enorme: nunca desborda la franja
+    const p = p0.length > limite ? p0.slice(0, limite - 1) + '…' : p0;   // palabra enorme: nunca desborda el cuadro
     if (!actual) actual = p;
     else if ((actual + ' ' + p).length <= limite) actual += ' ' + p;
     else { lineas.push(actual); actual = p; }
@@ -91,89 +100,63 @@ export function lineasDeTitulo(texto, { maxChars, maxLineas = MAX_LINEAS } = {})
   return dentro;
 }
 
-const aHex = (color) => '0x' + String(color).replace('#', '').toUpperCase();
-
 /**
- * Geometria de la franja para un canal. `posiciones` (opcional) = subconjunto de las que admite el canal; por defecto todas las del canal
- * (sports: superior + inferior; news: inferior). El titulo va en la PRIMERA franja elegida (la que el canal marca con titulo: true).
+ * Geometria completa de un video para un canal con difuminados.
+ *   formato        'vertical' (defecto) | 'horizontal'
+ *   difuminados    ausente = los sugeridos del canal para ese formato; lista o { regiones } = solo esos (vacia = ninguno);
+ *                  { usarSugeridos: true, regiones } = sugeridos + los agregados
+ *   posicionTitulo 'superior' | 'inferior' (por defecto la del canal)
+ * Devuelve { canal, formato, relacion, ancho, alto, tapaLogos, difuminados:{version, regiones}, geometria, titulo, avisos }.
+ *   difuminados = la estructura EDITABLE (la que el mini editor de la Parte 7 guarda y devuelve); geometria = lo que dibuja el render.
  */
-export function planDeFranja({ canal, titulo, posiciones, ancho = ANCHO, alto = ALTO } = {}) {
-  const { id, franja } = perfilConFranja(canal);
+export function planDeFranja({ canal, titulo, formato, difuminados, posicionTitulo, ancho, alto } = {}) {
+  const { id, config } = perfilConDifuminados(canal);
+  const fmt = formatoDe(formato);
+  const W = par(ancho ?? fmt.ancho);
+  const H = par(alto ?? fmt.alto);
   const gancho = ganchoDeTitulo(titulo, { canal: id });
-  const permitidas = franja.posiciones;
-  let elegidas;
-  if (posiciones === undefined || posiciones === null || (Array.isArray(posiciones) && !posiciones.length)) elegidas = [...permitidas];
-  else {
-    const lista = Array.isArray(posiciones) ? posiciones : String(posiciones).split(/[,\s;|]+/);
-    const limpias = [...new Set(lista.map((p) => String(p ?? '').trim().toLowerCase()).filter(Boolean))];
-    const malas = limpias.filter((p) => !permitidas.includes(p));
-    if (malas.length) throw new ErrorFranja('Posicion no valida para ' + id + ': ' + malas.map((m) => m.slice(0, 16)).join(', ') + '. Usa: ' + permitidas.join(', ') + '.');
-    elegidas = permitidas.filter((p) => limpias.includes(p));
+  const avisos = [...gancho.avisos];
+
+  const d = resolverDifuminados(difuminados, config.regiones[fmt.id]);
+  avisos.push(...d.avisos);
+  const geometria = geometriaDeDifuminados(d.regiones, W, H);
+  if (config.tapaLogos && !geometria.length) avisos.push('No hay difuminados activos: los logos ajenos del video fuente quedan visibles.');
+
+  const posicion = posicionTitulo === undefined || posicionTitulo === null || posicionTitulo === '' ? config.titulo.posicion : String(posicionTitulo).trim().toLowerCase();
+  if (!POSICIONES_TITULO.includes(posicion)) throw new ErrorFranja('Posicion del titulo no valida: ' + posicion.slice(0, 16) + '. Usa ' + POSICIONES_TITULO.join(' o ') + '.');
+
+  // El tamano baja hasta que las lineas quepan en el alto maximo del formato (minimo 65 % del tamano inicial).
+  const maxAncho = W * 0.86;
+  const tamInicial = Math.round(H * fmt.tituloPct);
+  const minTam = Math.max(8, Math.round(tamInicial * 0.65));
+  let tam = tamInicial;
+  let lineas;
+  for (;;) {
+    lineas = lineasDeTitulo(gancho.texto, { maxChars: maxAncho / (tam * 0.58) });
+    if (lineas.length * tam * 1.25 <= H * fmt.tituloAltoMaxPct || tam <= minTam) break;
+    tam -= 2;
   }
+  const bloque = lineas.length * tam * 1.25;
+  const yInicio = posicion === 'superior' ? Math.round(H * fmt.margen.superior) : Math.round(H * (1 - fmt.margen.inferior) - bloque);
+  const tituloPlan = {
+    texto: gancho.texto, lineas, tam, interlineado: Math.round(tam * 1.25), color: 'white', borde: Math.max(2, Math.round(tam * 0.05)),
+    caja: Math.min(0.8, Math.max(0, Number(config.titulo.caja) || 0)), cajaMargen: Math.max(2, Math.round(tam * 0.25)), yInicio, posicion,
+  };
 
-  const W = par(ancho);
-  const H = par(alto);
-  const altoBanda = par(H * franja.altoPct);
-  const alturaDegradado = par(altoBanda * FRACCION_DEGRADADO);
-  const color = aHex(franja.color);
-  const opacidad = Math.min(1, Math.max(0, franja.opacidadMax));
-
-  const bandas = elegidas.map((posicion) => {
-    const y = posicion === 'superior' ? 0 : H - altoBanda;
-    const degradado = franja.degradado
-      ? {
-          y: posicion === 'superior' ? altoBanda : H - altoBanda - alturaDegradado,
-          alto: alturaDegradado,
-          // de la franja hacia el centro: opaco junto a la franja y transparente en el borde interior (pasos escalonados)
-          pasos: Array.from({ length: PASOS_DEGRADADO }, (_, k) => {
-            const h = alturaDegradado / PASOS_DEGRADADO;
-            const desdeBorde = posicion === 'superior' ? k : PASOS_DEGRADADO - 1 - k;   // 0 = pegado a la franja
-            const y0 = posicion === 'superior' ? altoBanda : H - altoBanda - alturaDegradado;   // tiras contiguas, sin solaparse
-            return { y: Math.round(y0 + k * h), alto: Math.round(y0 + (k + 1) * h) - Math.round(y0 + k * h), opacidad: Math.round(opacidad * (1 - (desdeBorde + 1) / (PASOS_DEGRADADO + 1)) * 1000) / 1000 };
-          }),
-        }
-      : null;
-    return { posicion, y, alto: altoBanda, ancho: W, color, opacidad, lleva: false, degradado };
-  });
-  const conTitulo = franja.titulo ? bandas[0] : null;
-  if (conTitulo) conTitulo.lleva = true;
-
-  // Titulo: el tamano baja hasta que las lineas quepan en el 86 % del alto de la franja (minimo 2.2 % del alto del video).
-  let texto = null;
-  if (conTitulo) {
-    const maxAncho = W * 0.86;
-    const minTam = Math.round(H * 0.022);
-    let tam = Math.round(H * 0.034);
-    let lineas;
-    for (;;) {
-      lineas = lineasDeTitulo(gancho.texto, { maxChars: maxAncho / (tam * 0.58) });
-      if (lineas.length * tam * 1.25 <= altoBanda * 0.86 || tam <= minTam) break;
-      tam -= 2;
-    }
-    const bloque = lineas.length * tam * 1.25;
-    texto = {
-      texto: gancho.texto,
-      lineas,
-      tam,
-      interlineado: Math.round(tam * 1.25),
-      color: 'white',
-      borde: 3,
-      yInicio: Math.round(conTitulo.y + (altoBanda - bloque) / 2),
-      posicion: conTitulo.posicion,
-    };
-  }
-
-  return { canal: id, ancho: W, alto: H, tapaLogos: Boolean(franja.tapaLogos), bandas, titulo: texto, avisos: gancho.avisos };
+  return { canal: id, formato: fmt.id, relacion: fmt.relacion, ancho: W, alto: H, tapaLogos: Boolean(config.tapaLogos), difuminados: { version: d.version, regiones: d.regiones }, geometria, titulo: tituloPlan, avisos };
 }
 
 /**
- * Plan de produccion de un video fuente para un canal con franja.
- * entradas: [{ mercado, titulo, fuente: { archivo, inicio?, duracion? }, posiciones?, modo? }]  (un titulo por mercado; la fuente puede repetirse).
- * Devuelve { id, canal, mercados:[{ mercado, archivo, titulo, modo, fuente, franja }], resumen:{ renders }, avisos } con el mercado principal primero.
+ * Plan de produccion de un video fuente para un canal con difuminados.
+ * entradas: [{ mercado, titulo, fuente: { archivo, inicio?, fin?, duracion?, marcas? }, difuminados?, posicionTitulo?, modo? }]
+ *   (un titulo por mercado; la fuente puede repetirse; el formato es uno solo por produccion).
+ * Devuelve { id, canal, formato, mercados:[{ mercado, archivo, titulo, modo, fuente, franja }], resumen:{ renders, formato }, avisos }
+ * con el mercado principal primero. Salida: <canal>-<id>-<mercado>.mp4 (horizontal agrega -16x9).
  */
-export function planDeProduccionFranja({ id, canal, entradas } = {}) {
+export function planDeProduccionFranja({ id, canal, formato, entradas } = {}) {
   const idCanal = normalizarCanal(canal);
-  const { perfil } = perfilConFranja(idCanal);
+  const { perfil } = perfilConDifuminados(idCanal);
+  const fmt = formatoDe(formato);
   const proyecto = String(id ?? '').trim().toLowerCase();
   if (!ID_VALIDO.test(proyecto)) throw new ErrorFranja('Falta el id del proyecto o no es valido (a-z, 0-9, _ y -; maximo 64).');
   if (!Array.isArray(entradas) || !entradas.length) throw new ErrorFranja('Indica al menos una entrada { mercado, titulo, fuente }.');
@@ -188,24 +171,22 @@ export function planDeProduccionFranja({ id, canal, entradas } = {}) {
     const f = e.fuente;
     const archivo = f && typeof f === 'object' ? String(f.archivo ?? '').trim() : '';
     if (!archivo || archivo.includes('\u0000')) throw new ErrorFranja('Entrada ' + (i + 1) + ' (' + m + '): falta fuente.archivo.');
-    const inicio = f.inicio === undefined || f.inicio === null || f.inicio === '' ? 0 : Number(f.inicio);
-    if (!Number.isFinite(inicio) || inicio < 0) throw new ErrorFranja('Entrada ' + (i + 1) + ' (' + m + '): fuente.inicio debe ser un numero >= 0.');
-    let duracion = null;
-    if (f.duracion !== undefined && f.duracion !== null && f.duracion !== '') {
-      duracion = Number(f.duracion);
-      if (!Number.isFinite(duracion) || duracion <= 0) throw new ErrorFranja('Entrada ' + (i + 1) + ' (' + m + '): fuente.duracion debe ser un numero > 0.');
+    let rango;
+    try { rango = normalizarRango(f); } catch (error) {
+      if (error instanceof ErrorRango) throw new ErrorFranja('Entrada ' + (i + 1) + ' (' + m + '): ' + error.message);
+      throw error;
     }
     const modo = e.modo === undefined || e.modo === null || e.modo === '' ? perfil.trabajo.modo : String(e.modo).trim().toLowerCase();
     if (!['recorte', 'blur'].includes(modo)) throw new ErrorFranja('Entrada ' + (i + 1) + ' (' + m + '): modo no valido (' + modo.slice(0, 12) + '). Usa recorte o blur.');
-    const franja = planDeFranja({ canal: idCanal, titulo: e.titulo, posiciones: e.posiciones });
+    const franja = planDeFranja({ canal: idCanal, titulo: e.titulo, formato: fmt.id, difuminados: e.difuminados, posicionTitulo: e.posicionTitulo });
     avisos.push(...franja.avisos.map((a) => m + ': ' + a));
-    if (duracion !== null) {
+    if (rango.duracion !== null) {
       const { segmentMinSeconds: min, segmentMaxSeconds: max } = perfil.ritmo;
-      if (duracion > max) avisos.push(m + ': el tramo dura ' + duracion + ' s y el ritmo de ' + idCanal + ' recomienda hasta ' + max + ' s.');
-      if (duracion < min) avisos.push(m + ': el tramo dura ' + duracion + ' s y el ritmo de ' + idCanal + ' recomienda al menos ' + min + ' s.');
+      if (rango.duracion > max) avisos.push(m + ': el tramo dura ' + rango.duracion + ' s y el ritmo de ' + idCanal + ' recomienda hasta ' + max + ' s.');
+      if (rango.duracion < min) avisos.push(m + ': el tramo dura ' + rango.duracion + ' s y el ritmo de ' + idCanal + ' recomienda al menos ' + min + ' s.');
     }
-    return { mercado: m, archivo: idCanal + '-' + proyecto + '-' + m + '.mp4', titulo: franja.titulo ? franja.titulo.texto : String(e.titulo).trim(), modo, fuente: { archivo, inicio, duracion }, franja };
+    return { mercado: m, archivo: idCanal + '-' + proyecto + '-' + m + fmt.sufijo + '.mp4', titulo: franja.titulo.texto, modo, fuente: { archivo, inicio: rango.inicio, fin: rango.fin, duracion: rango.duracion }, franja };
   });
   mercados.sort((a, b) => (a.mercado === MERCADO_PRINCIPAL ? -1 : b.mercado === MERCADO_PRINCIPAL ? 1 : 0));
-  return { id: proyecto, canal: idCanal, mercados, resumen: { renders: mercados.length }, avisos };
+  return { id: proyecto, canal: idCanal, formato: fmt.id, mercados, resumen: { renders: mercados.length, formato: fmt.id }, avisos };
 }

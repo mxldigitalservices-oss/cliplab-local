@@ -308,3 +308,15 @@ dialog.dlg-guiones { width: min(96vw, 760px); max-height: 90vh; overflow-y: auto
 .dlg-guiones .lista-problemas { margin: 4px 0 0 16px; padding: 0; color: var(--warn); font-size: 12px; }
 .dlg-guiones .suave { color: var(--suave); font-size: 12px; margin: 2px 0; }
 .dlg-guiones .toolbar { display: flex; gap: 10px; margin-top: 12px; }
+
+/* Sports / News desde video fuente: difuminados ajustables y cancelar produccion (Parte 6B) */
+dialog.dlg-franja { width: min(96vw, 820px); }
+.dlg-franja .fila-difuminado { display: grid; grid-template-columns: minmax(110px, 1.6fr) repeat(5, minmax(52px, 0.7fr)) auto auto; gap: 6px; align-items: center; padding: 6px 8px; border: 1px solid var(--borde); border-radius: 8px; }
+.dlg-franja .fila-difuminado input[type="number"] { width: 100%; min-width: 0; }
+.dlg-franja .fila-difuminado .check { white-space: nowrap; }
+.dlg-franja [data-zona="btn-cancelar"], .dlg-guiones [data-zona="btn-cancelar"] { margin: 6px 0; border-color: var(--warn); color: var(--warn); }
+@media (max-width: 640px) {
+  .dlg-franja .fila-difuminado { grid-template-columns: repeat(3, 1fr); }
+  .dlg-franja .fila-difuminado input[type="text"] { grid-column: 1 / -1; }
+}
+

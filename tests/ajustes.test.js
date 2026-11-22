@@ -254,3 +254,12 @@ test('POST /lote/aplicar: encola una variante por clip listo con sus ajustes y e
   assert.equal((await post('/api/panel/lote/aplicar', { ids: [listo.id], ajustes: {} })).status, 400);
   assert.equal((await post('/api/panel/lote/aplicar', { ids: [listo.id], ajustes: { tono: 9 } })).status, 400);
 });
+
+test('color: "vivo", "vívido" y variantes se alinean con el catalogo "vivido" (y los acentos de otros colores no rompen)', async () => {
+  const { sanearAjustes, normalizarColor, COLORES } = await import('../src/ajustes.js');
+  for (const c of ['vivo', 'Vivo', ' VÍVIDO ', 'vivida', 'viva', 'vivido']) assert.equal(sanearAjustes({ color: c }).color, 'vivido', c);
+  assert.equal(sanearAjustes({ color: 'Cálido' }).color, 'calido');
+  assert.equal(normalizarColor('bn'), 'bn');
+  assert.ok(COLORES.includes('vivido') && !COLORES.includes('vivo'), 'el catalogo sigue siendo uno solo');
+  assert.throws(() => sanearAjustes({ color: 'vivos' }), /Color no permitido/);
+});

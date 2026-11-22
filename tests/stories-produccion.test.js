@@ -209,6 +209,7 @@ test('gestor: cancelar manda la senal de aborto al trabajo en curso', async () =
   await dormir(5);
   g.cancelar();
   await dormir(10);
-  assert.equal(g.estado().error, 'cancelado');
+  assert.equal(g.estado().estado, 'cancelado', 'una cancelacion pedida termina en cancelado, no en error');
+  assert.equal(g.estado().error, 'Produccion cancelada.');
   assert.ok(gestor);
 });

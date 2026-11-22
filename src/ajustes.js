@@ -12,6 +12,9 @@
 export const VELOCIDADES = Object.freeze([1, 1.1, 1.2, 1.25, 1.5]);
 export const TONOS = Object.freeze([-2, -1, 0, 1, 2]);
 export const COLORES = Object.freeze(['normal', 'calido', 'frio', 'vivido', 'bn']);
+// Nombres alternativos de color que llegan del panel, del dictado por voz o de plantillas viejas: "vivo", "vívido", "vivida"... son "vivido".
+// Se resuelven ANTES de validar contra COLORES, asi el catalogo (y public/js/ajustes.js) sigue siendo uno solo.
+export const ALIAS_COLOR = Object.freeze({ vivo: 'vivido', viva: 'vivido', vivida: 'vivido' });
 export const ENCUADRES = Object.freeze(['auto', 'centrado', 'amplio']);
 export const LOGO_ESCALA = Object.freeze({ min: 0.08, max: 0.6 });
 export const ID_LOGO = /^logo_[0-9a-f]{16}$/;
@@ -21,6 +24,12 @@ export class ErrorAjustes extends Error {
     super(mensaje);
     this.status = 400;   // el manejador de errores de Express ya respeta e.status
   }
+}
+
+/** minusculas, sin acentos ni espacios; "Vivo" / "vívido" -> "vivido". Un valor que no existe se devuelve limpio y sanearAjustes lo rechaza. */
+export function normalizarColor(valor) {
+  const limpio = String(valor ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return Object.hasOwn(ALIAS_COLOR, limpio) ? ALIAS_COLOR[limpio] : limpio;
 }
 
 const acotar = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -59,7 +68,7 @@ export function sanearAjustes(raw) {
   if (!VELOCIDADES.includes(velocidad)) throw new ErrorAjustes('Velocidad no permitida: usa ' + VELOCIDADES.join(', ') + 'x');
   const tono = a.tono === undefined || a.tono === '' ? 0 : Number(a.tono);
   if (!TONOS.includes(tono)) throw new ErrorAjustes('Tono no permitido: usa entre ' + TONOS[0] + ' y +' + TONOS[TONOS.length - 1] + ' semitonos');
-  const color = a.color === undefined || a.color === '' ? 'normal' : String(a.color).toLowerCase();
+  const color = a.color === undefined || a.color === '' ? 'normal' : normalizarColor(a.color);
   if (!COLORES.includes(color)) throw new ErrorAjustes('Color no permitido: usa ' + COLORES.join(', '));
   const encuadre = a.encuadre === undefined || a.encuadre === '' ? 'auto' : String(a.encuadre).toLowerCase();
   if (!ENCUADRES.includes(encuadre)) throw new ErrorAjustes('Encuadre no permitido: usa ' + ENCUADRES.join(', '));
