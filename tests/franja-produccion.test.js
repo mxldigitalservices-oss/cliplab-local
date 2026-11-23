@@ -188,15 +188,23 @@ test('producirFranja: cancelar mientras espera el candado (otro trabajo pesado) 
   const ac = new AbortController();
   let soltar;
   const bloqueo = exclusion.ejecutar('ollama', () => new Promise((r) => { soltar = r; }));
-  await new Promise((r) => setTimeout(r, 10));
-  const p = producirFranja({ id: 'espera', canal: 'sports', entradas: [entradas[1]], dirSalida: path.join(base, 's8'), dirTemporal: path.join(base, 't8'), dirsFuente: dirs, deps: deps(llamadas), signal: ac.signal });
-  await new Promise((r) => setTimeout(r, 20));
-  assert.deepEqual(exclusion.estado().esperando, ['ffmpeg']);
-  ac.abort();
-  await assert.rejects(p, /Produccion cancelada/);
-  assert.deepEqual(exclusion.estado().esperando, [], 'la espera cancelada sale de la fila');
-  soltar();
-  await bloqueo;
+  // Se espera por CONDICION y no con pausas fijas: bajo carga de CPU (otros archivos de prueba en paralelo) 20 ms no alcanzan, y si el assert
+  // fallara antes de soltar() el candado quedaria tomado y todas las pruebas siguientes se colgarian.
+  const hasta = async (cond) => { const t0 = Date.now(); while (!cond()) { if (Date.now() - t0 > 10000) throw new Error('tiempo agotado esperando el candado'); await new Promise((r) => setTimeout(r, 5)); } };
+  try {
+    await hasta(() => exclusion.estado().ocupado === 'ollama');
+    var p = producirFranja({ id: 'espera', canal: 'sports', entradas: [entradas[1]], dirSalida: path.join(base, 's8'), dirTemporal: path.join(base, 't8'), dirsFuente: dirs, deps: deps(llamadas), signal: ac.signal });
+    p.catch(() => {});   // evita un rechazo sin atender mientras se espera
+    await hasta(() => exclusion.estado().esperando.includes('ffmpeg'));
+    assert.deepEqual(exclusion.estado().esperando, ['ffmpeg']);
+    ac.abort();
+    await assert.rejects(p, /Produccion cancelada/);
+    assert.deepEqual(exclusion.estado().esperando, [], 'la espera cancelada sale de la fila');
+  } finally {
+    ac.abort();
+    soltar();   // siempre se libera, pase lo que pase
+    await bloqueo;
+  }
   assert.equal(llamadas.length, 0);
   assert.equal(exclusion.estado().ocupado, null);
 });
