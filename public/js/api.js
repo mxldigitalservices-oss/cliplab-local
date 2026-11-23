@@ -247,3 +247,10 @@ export const listarFuentesFranja = (signal) => solicitar('/api/panel/franja/fuen
 export const validarDifuminados = (canal, formato, difuminados) => solicitar('/api/panel/franja/difuminados/validar', { metodo: 'POST', cuerpo: { canal, formato, difuminados } });
 export const producirFranjaVideo = (cuerpo) => solicitar('/api/panel/franja/producir', { metodo: 'POST', cuerpo });
 export const cancelarProduccion = () => solicitar('/api/panel/produccion/cancelar', { metodo: 'POST', cuerpo: {} });
+
+// ---- Mini Editor: difuminados + capas PNG + audio sobre un tramo (Parte 7A) ----
+export const obtenerConfigEditor = (signal) => solicitar('/api/panel/editor/config', { signal });
+export const validarEditor = (cuerpo) => solicitar('/api/panel/editor/validar', { metodo: 'POST', cuerpo });
+export const previsualizarEditor = (cuerpo) => solicitar('/api/panel/editor/previsualizar', { metodo: 'POST', cuerpo, timeoutMs: 70000 });
+export const renderizarEditor = (cuerpo) => solicitar('/api/panel/editor/renderizar', { metodo: 'POST', cuerpo });
+export const cancelarEditor = () => solicitar('/api/panel/editor/cancelar', { metodo: 'POST', cuerpo: {} });

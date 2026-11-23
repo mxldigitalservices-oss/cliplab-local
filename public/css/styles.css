@@ -320,3 +320,27 @@ dialog.dlg-franja { width: min(96vw, 820px); }
   .dlg-franja .fila-difuminado input[type="text"] { grid-column: 1 / -1; }
 }
 
+
+/* Mini Editor: lienzo con difuminados, capas PNG y audio (Parte 7A) */
+dialog.dlg-editor { width: min(96vw, 980px); }
+.dlg-editor .editor-grid { display: grid; grid-template-columns: minmax(220px, 340px) minmax(0, 1fr); gap: 14px; align-items: start; }
+.dlg-editor .lienzo-editor { display: block; width: 100%; height: auto; max-height: 72vh; background: #0b0f18; border: 1px solid var(--borde); border-radius: 8px; touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none; }
+.dlg-editor .lienzo-editor:active { cursor: grabbing; }
+.dlg-editor .editor-lienzo .toolbar { flex-wrap: wrap; margin: 8px 0; align-items: end; }
+.dlg-editor fieldset { border: 1px solid var(--borde); border-radius: 8px; margin: 0 0 10px; padding: 8px 10px 10px; min-width: 0; }
+.dlg-editor legend { padding: 0 6px; color: var(--suave); font-size: 12px; }
+.dlg-editor .fila-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-bottom: 8px; }
+.dlg-editor input, .dlg-editor select { min-height: 36px; min-width: 0; }
+.dlg-editor input[type="range"] { width: 100%; padding: 0; min-height: 28px; }
+.dlg-editor .elementos { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+.dlg-editor .elemento { display: block; width: 100%; text-align: left; border-radius: 8px; padding: 8px 10px; min-height: 40px; }
+.dlg-editor .elemento[aria-pressed="true"] { border-color: var(--acento); background: var(--panel-2); }
+.dlg-editor .elemento[data-activo="0"] { opacity: .6; }
+.dlg-editor .elemento[data-tipo="region"]::before { content: "\25A0 "; color: #4aa3ff; }
+.dlg-editor .elemento[data-tipo="capa"]::before { content: "\25A0 "; color: #46d19a; }
+.dlg-editor .toolbar .btn { min-height: 38px; }
+@media (max-width: 720px) {
+  .dlg-editor .editor-grid { grid-template-columns: minmax(0, 1fr); }
+  .dlg-editor .lienzo-editor { max-width: min(100%, 300px); max-height: 52vh; margin: 0 auto; }
+  .dlg-editor .toolbar { flex-direction: row; }
+}

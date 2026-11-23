@@ -8,6 +8,7 @@ import loteRoutes from './lote.js';
 import paqueteRoutes from './paquete.js';
 import guionesRoutes from './guiones.js';
 import franjaRoutes from './franja.js';
+import editorRoutes from './editor.js';
 import { config } from '../config/index.js';
 
 const router = Router();
@@ -18,7 +19,7 @@ router.get('/api', (req, res) => {
     name: 'ClipLab Pro API',
     version: '0.3.0',
     modo: config.modo,
-    endpoints: ['/health', '/api/status', '/api/panel/estado', '/api/panel/encolar', '/api/panel/sesion', '/api/panel/cookies-redes', '/api/panel/logo', '/api/panel/lote/aplicar', '/api/panel/canales', '/api/panel/clips/:id/paquete', '/api/panel/clips/:id/descarga', '/api/panel/guiones', '/api/panel/guiones/entorno', '/api/panel/guiones/estado', '/api/panel/guiones/procesar', '/api/panel/guiones/producir', '/api/panel/franja/config', '/api/panel/franja/fuentes', '/api/panel/franja/difuminados/validar', '/api/panel/franja/producir', '/api/panel/produccion/cancelar'],
+    endpoints: ['/health', '/api/status', '/api/panel/estado', '/api/panel/encolar', '/api/panel/sesion', '/api/panel/cookies-redes', '/api/panel/logo', '/api/panel/lote/aplicar', '/api/panel/canales', '/api/panel/clips/:id/paquete', '/api/panel/clips/:id/descarga', '/api/panel/guiones', '/api/panel/guiones/entorno', '/api/panel/guiones/estado', '/api/panel/guiones/procesar', '/api/panel/guiones/producir', '/api/panel/franja/config', '/api/panel/franja/fuentes', '/api/panel/franja/difuminados/validar', '/api/panel/franja/producir', '/api/panel/produccion/cancelar', '/api/panel/editor/config', '/api/panel/editor/validar', '/api/panel/editor/previsualizar', '/api/panel/editor/renderizar', '/api/panel/editor/cancelar'],
   });
 });
 
@@ -50,6 +51,7 @@ router.use('/api/panel', loteRoutes);
 router.use('/api/panel', paqueteRoutes);
 router.use('/api/panel', guionesRoutes);
 router.use('/api/panel', franjaRoutes);
+router.use('/api/panel', editorRoutes);
 router.use('/api/panel', panelRoutes);
 
 // Publicador automatico (programador + publicador + Chromium). En modo local NO se carga: el import es dinamico a proposito,
